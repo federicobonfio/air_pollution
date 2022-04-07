@@ -1,0 +1,117 @@
+---
+title: "20236 Time Series Analysis: Final Project"
+author:
+    - Federico Bonfio (3187867)
+    - Jonathan Martelli (3074606)
+    - Stefano Pacifico (3185497)
+    - Matteo Ticli (3077833)
+date: "February 28, 2022"
+output: pdf_document
+header-includes: 
+  - \renewcommand{\and}{\\}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,
+                      results = FALSE,
+                      warning = FALSE,
+                      echo = FALSE,
+                      fig.align = "center")
+
+set.seed(42)
+#libraries
+library(depmixS4)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(rgeos)
+library(ggrepel)
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r, echo=FALSE}
+dat <- read_csv("ts_epa_2020_west_sept_fill.csv", col_types = cols(temp = col_double(), wind = col_double()))
+locations <- data.frame("Longitude" = unique(dat$Longitude), "Latitude" = unique(dat$Latitude), labels = 1:10)
+Stations <- st_as_sf(locations, coords = c("Longitude", "Latitude"),crs = 4326)
+summary(dat)
+```
+# Analysis on station 95
+```{r}
+df_95 = dat[which(dat$station_id==95),]
+```
+We are going to plot the observations for the $PM_{2.5}$ in order to grasp a sense of what the data look like, being this variable the main one for our analysis. 
+
+```{r, message= F, warning= F, out.width = '70%', fig.align = "center"}
+plotdata <- df_95 %>% dplyr::filter(station_id == 95)
+
+plotdata %>% 
+  ggplot() + 
+  ggtitle("PM2.5 levels at Station #95") +
+  geom_rect(data=data.frame(xmin=min(plotdata$datetime), xmax=max(plotdata$datetime), ymin=25, ymax=max(plotdata$pm25)),
+            aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax), fill="grey", alpha=.4) +
+  annotate(geom="text", x=as.POSIXct("2020-06-25 23:00:00 UTC"), y=75, label="Dangerous PM2.5 level Area", color="dark grey") +
+  geom_line(data=plotdata, aes(x=datetime, y=pm25)) + 
+  geom_hline(yintercept=25, color="grey") + 
+  scale_x_datetime(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  labs(x=NULL, y=NULL)
+```
+The plot shows the $PM_{2.5}$ levels in the time-frame considered. According to national authorities, the maximum level of $PM_{2.5}$ is suggested to be below 25 micrograms per cubic meter on a daily average rolling basis. We can clearly notice that the level of particle matter increases in the second part of August and in September as well: this could be associated to the wildfire season that devastated the forests of California in late summer 2020. 
+
+```{r, message= F, warning= F, out.width = '70%', fig.align = "center"}
+plotdata <- df_95 %>% dplyr::filter(station_id == 95)
+
+plotdata %>% 
+  ggplot() + 
+  ggtitle("Wind levels at Station #95") +
+  geom_line(data=plotdata, aes(x=datetime, y=wind)) + 
+  scale_x_datetime(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  labs(x=NULL, y=NULL)
+```
+
+```{r, message= F, warning= F, out.width = '70%', fig.align = "center"}
+plotdata <- df_95 %>% dplyr::filter(station_id == 95)
+
+plotdata %>% 
+  ggplot() + 
+  ggtitle("Temperature levels at Station #95") +
+  geom_line(data=plotdata, aes(x=datetime, y=temp)) + 
+  scale_x_datetime(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  labs(x=NULL, y=NULL)
+```
+In the plot above we can observe the data relative to the wind observations at the station 95,as well as the data relative to the temperature. We can notice that both graphs resemble a white noise, meaning that there is no correlation between subsequent observations. 
+
+Moreover, since the suggested limit of $PM_{2.5}$ is set to be, on daily average at 25 micrograms per cubic meter, we should take into account the daily average of the $PM_{2.5}$ levels. 
+```{r}
+# we ha ve created a loop that goes over the observation of PM25 in the subset of the main dataset
+# the script iteratively updates the column of means PM25
+
+pm25_means <- rep(0, length(df_95$pm25))
+
+for(i in seq(from=1, to=length(df_95$pm25), by=24)){
+  daily_mean = mean(df_95$pm25[i:i+23])
+  pm25_means[i:i+23] = daily_mean
+}
+
+df_95$pm25_means = pm25_means
+```
+
+```{r, message= F, warning= F, out.width = '70%', fig.align = "center"}
+plotdata <- df_95
+
+plotdata %>% 
+  ggplot() + 
+  ggtitle("Means of PM2.5 levels at Station #95") +
+  geom_rect(data=data.frame(xmin=min(plotdata$datetime), xmax=max(plotdata$datetime), ymin=25, ymax=max(plotdata$pm25_means)),
+            aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax), fill="grey", alpha=.4) +
+  annotate(geom="text", x=as.POSIXct("2020-06-25 23:00:00 UTC"), y=30, label="Dangerous PM2.5 level Area", color="dark grey") +
+  geom_line(data=df_95, aes(x=datetime, y=pm25_means)) + 
+  geom_hline(yintercept=25, color="grey") + 
+  scale_x_datetime(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  labs(x=NULL, y=NULL)
+```
+The plot above describes the daily means for $PM_{2.5}$ observations, as we can see, there are much less observations that are above the critical level suggested by the national authorities. We actually see that there are only 7 days out of four months that are above the threshold.
