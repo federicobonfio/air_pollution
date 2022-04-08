@@ -115,3 +115,6 @@ plotdata %>%
   labs(x=NULL, y=NULL)
 ```
 The plot above describes the daily means for $PM_{2.5}$ observations, as we can see, there are much less observations that are above the critical level suggested by the national authorities. We actually see that there are only 7 days out of four months that are above the threshold.
+
+ciao
+
